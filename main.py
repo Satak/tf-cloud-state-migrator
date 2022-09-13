@@ -3,53 +3,76 @@ import hashlib
 import base64
 from os import environ
 
-source_org = ""
-target_org = ""
+state_hash = hashlib.md5()
 
-source_workspace_id = environ["SOURCE_WS_ID"]
-target_workspace_id = ""
 
-headers = {
-    'Authorization': f'Bearer {environ["SOURCE_TOKEN"]}',
-    'Content-Type': 'application/json'
-}
+def get_workspace_ids(org_name, base_url, headers):
+    ws_api_endpoint = f"/organizations/{org_name}/workspaces"
+    url = base_url + ws_api_endpoint
 
-base_url = "https://app.terraform.io/api/v2"
-api_endpoint = f"/workspaces/{source_workspace_id}/current-state-version"
+    ws_data = requests.get(
+        url, params=None, headers=headers).json()["data"]
+    return {ws["attributes"]["name"]: ws["id"] for ws in ws_data}
 
-source_full_url = base_url + api_endpoint
 
-current_source_version = requests.get(
-    source_full_url, params=None, headers=headers).json()["data"]
+def get_state_payload(workspace_id, base_url, headers):
+    ws_state_api_endpoint = f"/workspaces/{workspace_id}/current-state-version"
 
-source_state_url = current_source_version["attributes"]["hosted-state-download-url"]
+    ws_url = base_url + ws_state_api_endpoint
 
-res = requests.get(
-    source_state_url, params=None, headers=headers)
-content = res.content
+    ws_res = requests.get(ws_url, params=None, headers=headers)
+    print(ws_res.status_code)
 
-source_pull_state = res.json()
+    if ws_res.status_code != 200:
+        return
 
-source_state_serial = source_pull_state["serial"]
-source_state_lineage = source_pull_state["lineage"]
+    state_url = ws_res.json(
+    )["data"]["attributes"]["hosted-state-download-url"]
 
-source_state_hash = hashlib.md5()
-source_state_hash.update(content)
-source_state_md5 = source_state_hash.hexdigest()
+    state_res = requests.get(
+        state_url, params=None, headers=headers)
 
-source_state_b64 = base64.b64encode(content).decode("utf-8")
+    state_raw_content = state_res.content
+    state_dict = state_res.json()
 
-# Build the new state payload
-create_state_version_payload = {
-    "data": {
-        "type": "state-versions",
-        "attributes": {
-            "serial": source_state_serial,
-            "md5": source_state_md5,
-            "lineage": source_state_lineage,
-            "state": source_state_b64
+    state_hash.update(state_raw_content)
+    state_md5 = state_hash.hexdigest()
+    state_b64 = base64.b64encode(
+        state_raw_content).decode("utf-8")
+
+    # Build the new state payload
+    return {
+        "data": {
+            "type": "state-versions",
+            "attributes": {
+                "serial": state_dict["serial"],
+                "md5": state_md5,
+                "lineage": state_dict["lineage"],
+                "state": state_b64
+            }
         }
     }
-}
 
-print(create_state_version_payload)
+
+def main():
+    source_workspace_id = environ["SOURCE_WS_ID"]
+    source_org_name = environ["SOURCE_ORG_NAME"]
+    source_token = environ["SOURCE_TOKEN"]
+
+    headers = {
+        "Authorization": f"Bearer {source_token}",
+        "Content-Type": "application/json"
+    }
+
+    base_url = "https://app.terraform.io/api/v2"
+
+    source_ws_ids = get_workspace_ids(source_org_name, base_url, headers)
+
+    for ws_name, ws_id in source_ws_ids.items():
+        print(ws_name)
+        d = get_state_payload(ws_id, base_url, headers)
+        print(d)
+
+
+if __name__ == "__main__":
+    main()
