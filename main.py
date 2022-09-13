@@ -3,6 +3,10 @@ import hashlib
 import base64
 from os import environ
 
+from colorama import init, Fore, Back, Style
+
+init(autoreset=True)
+
 
 def get_headers(token):
     return {
@@ -63,8 +67,12 @@ def post_new_state(workspace_id, payload, base_url, headers):
     api_endpoint = f"/workspaces/{workspace_id}/state-versions"
     url = base_url + api_endpoint
     res = requests.post(url, json=payload, headers=headers)
-    print('post new state status code:', res.status_code)
-    print('content', res.json())
+
+
+def lock_workspace(workspace_id, base_url, headers, lock_type="lock"):
+    api_endpoint = f"/workspaces/{workspace_id}/actions/{lock_type}"
+    url = base_url + api_endpoint
+    requests.post(url, headers=headers)
 
 
 def main():
@@ -83,14 +91,27 @@ def main():
         target_org_name, base_url, headers)
 
     for source_ws_name, source_ws_id in source_ws_ids.items():
-        print('source ws name:', source_ws_name)
-        state_data = get_state_payload(source_ws_id, base_url, headers)
-        if state_data and source_ws_name in target_ws_ids:
+        print("\n")
+        print(Style.BRIGHT + Back.BLUE + Fore.BLACK + source_ws_name)
+        state_data = None
+
+        if source_ws_name in target_ws_ids:
+            state_data = get_state_payload(source_ws_id, base_url, headers)
+        else:
+            print(Style.BRIGHT + Back.RED + Fore.BLACK +
+                  "STATE MIGRATION FAIL")
+            print("Source workspace name:", source_ws_name,
+                  "not found from target workspaces!")
+
+        if state_data:
             target_ws_id = target_ws_ids[source_ws_name]
-            print('target ws id:', target_ws_id)
-            print(state_data)
+            print(Style.BRIGHT + Back.GREEN + Fore.BLACK +
+                  "STATE MIGRATION SUCCESS")
+            print('Target workstation ID', target_ws_id)
+
+            lock_workspace(target_ws_id, base_url, headers)
             post_new_state(target_ws_id, state_data, base_url, headers)
-            # TODO: lock and unlock workspace, only locked workspace can receive new state via api
+            lock_workspace(target_ws_id, base_url, headers, "unlock")
 
 
 if __name__ == "__main__":
