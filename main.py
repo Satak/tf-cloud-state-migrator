@@ -3,13 +3,11 @@ import hashlib
 import base64
 from os import environ
 
-state_hash = hashlib.md5()
-
 
 def get_headers(token):
     return {
         "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/vnd.api+json"
     }
 
 
@@ -40,6 +38,8 @@ def get_state_payload(workspace_id, base_url, headers):
     state_raw_content = state_res.content
     state_dict = state_res.json()
 
+    state_hash = hashlib.md5()
+
     state_hash.update(state_raw_content)
     state_md5 = state_hash.hexdigest()
     state_b64 = base64.b64encode(
@@ -64,6 +64,7 @@ def post_new_state(workspace_id, payload, base_url, headers):
     url = base_url + api_endpoint
     res = requests.post(url, json=payload, headers=headers)
     print('post new state status code:', res.status_code)
+    print('content', res.json())
 
 
 def main():
@@ -87,7 +88,9 @@ def main():
         if state_data and source_ws_name in target_ws_ids:
             target_ws_id = target_ws_ids[source_ws_name]
             print('target ws id:', target_ws_id)
+            print(state_data)
             post_new_state(target_ws_id, state_data, base_url, headers)
+            # TODO: lock and unlock workspace, only locked workspace can receive new state via api
 
 
 if __name__ == "__main__":
