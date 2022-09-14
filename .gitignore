@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+migration.csv
+
 # Distribution / packaging
 .Python
 build/
