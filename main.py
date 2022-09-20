@@ -108,6 +108,8 @@ def main():
     # $ENV:SOURCE_ORG_NAME = ""
     # $ENV:TARGET_ORG_NAME = ""
     # $ENV:TFE_TOKEN = ""
+    unlock_source = False
+    lock_source = False
     source_org_name = environ["SOURCE_ORG_NAME"]
     target_org_name = environ["TARGET_ORG_NAME"]
     tfe_token = environ["TFE_TOKEN"]
@@ -133,12 +135,13 @@ def main():
         info = "Migration not started"
         state = "FAILED"
         migrated = False
+        source_ws_id = source_ws["id"]
 
         ws_migration = WorkspaceMigration(
             source_org_name,
             target_org_name,
             source_ws_name,
-            source_ws["id"],
+            source_ws_id,
             target_ws_id,
             info,
             state,
@@ -150,7 +153,7 @@ def main():
         state_data = None
 
         if source_ws_name in target_workspaces:
-            state_data = get_state_payload(source_ws["id"], base_url, headers)
+            state_data = get_state_payload(source_ws_id, base_url, headers)
         else:
             info = f"Source workspace name not found from target workspaces"
 
@@ -177,6 +180,9 @@ def main():
             ws_migration.state = "MIGRATED"
             ws_migration.migrated = True
 
+            if lock_source:
+                lock_workspace(source_ws_id, base_url, headers)
+
             if not target_ws["locked"]:
                 lock_workspace(target_ws_id, base_url, headers, "unlock")
         else:
@@ -188,6 +194,9 @@ def main():
             ws_migration.state = "SKIPPED"
             ws_migration.migrated = False
         data.append(ws_migration)
+
+        if unlock_source:
+            lock_workspace(source_ws_id, base_url, headers, "unlock")
 
     out_csv(data)
 
