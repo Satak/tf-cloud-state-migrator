@@ -182,6 +182,7 @@ def main():
 
             if lock_source:
                 lock_workspace(source_ws_id, base_url, headers)
+                print('Source WS ID locked:', source_ws_id)
 
             if not target_ws["locked"]:
                 lock_workspace(target_ws_id, base_url, headers, "unlock")
