@@ -95,7 +95,8 @@ def get_state_payload(workspace_id, base_url, headers):
 def post_new_state(workspace_id, payload, base_url, headers):
     api_endpoint = f"/workspaces/{workspace_id}/state-versions"
     url = base_url + api_endpoint
-    return requests.post(url, json=payload, headers=headers)
+    res = requests.post(url, json=payload, headers=headers)
+    return {"status_code": res.status_code, "json": res.json()}
 
 
 def lock_workspace(workspace_id, base_url, headers, lock_type="lock"):
@@ -109,7 +110,7 @@ def main():
     # $ENV:TARGET_ORG_NAME = ""
     # $ENV:TFE_TOKEN = ""
     unlock_source = False
-    lock_source = False
+    lock_source = True
     source_org_name = environ["SOURCE_ORG_NAME"]
     target_org_name = environ["TARGET_ORG_NAME"]
     tfe_token = environ["TFE_TOKEN"]
@@ -175,11 +176,17 @@ def main():
             if not target_ws["locked"]:
                 lock_workspace(target_ws_id, base_url, headers)
 
-            post_new_state(target_ws_id, state_data, base_url, headers)
-            ws_migration.info = "Migration OK"
-            ws_migration.state = "MIGRATED"
-            ws_migration.migrated = True
+            post_state = post_new_state(
+                target_ws_id, state_data, base_url, headers)
 
+            if post_state["status_code"] == 200:
+                ws_migration.info = "Migration OK"
+                ws_migration.state = "MIGRATED"
+                ws_migration.migrated = True
+            else:
+                ws_migration.info = post_state["json"]
+                ws_migration.state = "FAILED"
+                ws_migration.migrated = False
             if lock_source:
                 lock_workspace(source_ws_id, base_url, headers)
                 print('Source WS ID locked:', source_ws_id)
