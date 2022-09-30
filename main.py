@@ -156,7 +156,7 @@ def main():
         if source_ws_name in target_workspaces:
             state_data = get_state_payload(source_ws_id, base_url, headers)
         else:
-            info = f"Source workspace name not found from target workspaces"
+            info = f"Source workspace name: [{source_ws_name}] NOT FOUND from target workspaces"
 
             print(Style.BRIGHT + Back.RED + Fore.BLACK +
                   "STATE MIGRATION FAIL")
@@ -169,8 +169,7 @@ def main():
             target_ws = target_workspaces[source_ws_name]
             target_ws_id = target_ws["id"]
             ws_migration.target_ws_id = target_ws_id
-            print(Style.BRIGHT + Back.GREEN + Fore.BLACK +
-                  "STATE MIGRATION SUCCESS")
+
             print('Target workstation ID', target_ws_id)
 
             if not target_ws["locked"]:
@@ -179,17 +178,22 @@ def main():
             post_state = post_new_state(
                 target_ws_id, state_data, base_url, headers)
 
-            if post_state["status_code"] == 200:
+            if post_state["status_code"] == 200 or post_state["status_code"] == 201:
                 ws_migration.info = "Migration OK"
                 ws_migration.state = "MIGRATED"
                 ws_migration.migrated = True
+                print(Style.BRIGHT + Back.GREEN + Fore.BLACK +
+                      "STATE MIGRATION SUCCESS")
             else:
                 ws_migration.info = post_state["json"]
                 ws_migration.state = "FAILED"
                 ws_migration.migrated = False
+                print(Style.BRIGHT + Back.RED + Fore.BLACK +
+                      "STATE MIGRATION FAIL")
+                print(ws_migration.info)
             if lock_source:
                 lock_workspace(source_ws_id, base_url, headers)
-                print('Source WS ID locked:', source_ws_id)
+                # print('Source WS ID locked:', source_ws_id)
 
             if not target_ws["locked"]:
                 lock_workspace(target_ws_id, base_url, headers, "unlock")
